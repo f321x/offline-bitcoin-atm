@@ -12,6 +12,9 @@ LNBits, Ben Arc and Stepan Snigirev for the cryptograpy used to make this ATM wo
 Axel Hamburch for the very detailed guide in german language on assembly of the electronics  
 [Ereignishorizont Blog](https://ereignishorizont.xyz/lightning-atm/)
 
+@marcelhino for the OrangeClock project, whose code was used as reference for the "BlockClock" idle display mode.
+[OrangeClock repository](https://github.com/marcelhino/orangeclock)
+
 ## Used parts
 All the parts are available on eBay and Aliexpress
 

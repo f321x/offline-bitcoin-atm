@@ -1,5 +1,4 @@
 use esp_idf_hal::gpio::*;
-use esp_idf_hal::peripherals::Peripherals;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BoardType {
@@ -32,7 +31,7 @@ pub struct BoardPins<'a> {
 }
 
 impl BoardPins<'_> {
-    pub fn new(board: BoardType, _pins: &mut Peripherals) -> Result<Self, String> {
+    pub fn new(board: BoardType) -> Result<Self, String> {
         // Using unsafe to create AnyIOPin from IDs.
         // This avoids moving Peripherals and allows dynamic selection.
 

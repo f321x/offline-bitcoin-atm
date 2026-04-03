@@ -151,6 +151,73 @@ button:active {
     font-size: 12px;
     color: #555;
 }
+
+.section-header {
+    margin-top: 36px;
+    margin-bottom: 20px;
+    padding-left: 14px;
+    border-left: 3px solid #f7931a;
+}
+
+.section-header h2 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #f7931a;
+}
+
+.section-header p {
+    font-size: 13px;
+    color: #888;
+    margin-top: 4px;
+}
+
+.check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.check-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    accent-color: #f7931a;
+    cursor: pointer;
+}
+
+.check-row label {
+    display: inline;
+    font-size: 14px;
+    font-weight: 400;
+    color: #e0e0e0;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.check-row.enable {
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.check-row.enable input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+}
+
+.check-row.enable label {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+}
 </style>
 </head>
 <body>
@@ -204,6 +271,101 @@ button:active {
                     <option value="270" selected>270&deg;</option>
                 </select>
                 <p class="hint">Rotate if the display appears upside-down</p>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <h2>OrangeClock Display</h2>
+            <p>Show Bitcoin network data while the ATM is idle. Requires WiFi.</p>
+        </div>
+
+        <div class="card">
+            <div class="check-row enable">
+                <input type="checkbox" id="oc_enabled" name="oc_enabled" value="1">
+                <label for="oc_enabled">Enable OrangeClock display</label>
+            </div>
+
+            <hr class="divider">
+
+            <div class="field">
+                <label for="oc_ssid">WiFi Network (SSID)</label>
+                <input
+                    id="oc_ssid"
+                    name="oc_ssid"
+                    placeholder="Your WiFi network name"
+                >
+            </div>
+
+            <div class="field">
+                <label for="oc_pass">WiFi Password</label>
+                <input
+                    type="password"
+                    id="oc_pass"
+                    name="oc_pass"
+                    placeholder="WiFi password"
+                >
+            </div>
+
+            <hr class="divider">
+
+            <div class="field">
+                <label for="oc_currency">Price Currency</label>
+                <select id="oc_currency" name="oc_currency">
+                    <option value="USD" selected>USD</option>
+                    <option value="EUR">EUR</option>
+                </select>
+            </div>
+
+            <hr class="divider">
+
+            <div class="field">
+                <label>Show on Display</label>
+                <div class="checkbox-grid">
+                    <div class="check-row">
+                        <input type="checkbox" id="oc_item_height" name="oc_item_height" value="1" checked>
+                        <label for="oc_item_height">Block Height</label>
+                    </div>
+                    <div class="check-row">
+                        <input type="checkbox" id="oc_item_price" name="oc_item_price" value="1" checked>
+                        <label for="oc_item_price">Bitcoin Price</label>
+                    </div>
+                    <div class="check-row">
+                        <input type="checkbox" id="oc_item_moscow" name="oc_item_moscow" value="1">
+                        <label for="oc_item_moscow">Moscow Time</label>
+                    </div>
+                    <div class="check-row">
+                        <input type="checkbox" id="oc_item_fees" name="oc_item_fees" value="1" checked>
+                        <label for="oc_item_fees">Transaction Fees</label>
+                    </div>
+                    <div class="check-row">
+                        <input type="checkbox" id="oc_item_halving" name="oc_item_halving" value="1">
+                        <label for="oc_item_halving">Halving Countdown</label>
+                    </div>
+                    <div class="check-row">
+                        <input type="checkbox" id="oc_item_diff" name="oc_item_diff" value="1">
+                        <label for="oc_item_diff">Difficulty Adj.</label>
+                    </div>
+                    <div class="check-row">
+                        <input type="checkbox" id="oc_item_mempool" name="oc_item_mempool" value="1">
+                        <label for="oc_item_mempool">Mempool Size</label>
+                    </div>
+                </div>
+                <div class="check-row" style="margin-top: 12px">
+                    <input type="checkbox" id="oc_custom_mempool" name="oc_custom_mempool" value="1"
+                        onchange="document.getElementById('custom-mempool-field').style.display=this.checked?'':'none'">
+                    <label for="oc_custom_mempool">Custom mempool.space API</label>
+                </div>
+                <p class="hint">Select which Bitcoin data to display on the e-paper screen during idle.</p>
+            </div>
+
+            <div class="field" id="custom-mempool-field" style="display: none">
+                <label for="oc_mempool">Mempool API Endpoint</label>
+                <input
+                    id="oc_mempool"
+                    name="oc_mempool"
+                    placeholder="mempool.space"
+                >
+                <p class="hint">Default: mempool.space with mempool.emzy.de as fallback.</p>
             </div>
         </div>
 

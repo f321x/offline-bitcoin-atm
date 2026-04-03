@@ -1,5 +1,6 @@
 //! logic for user configuration of the atm, persisted in esp flash
 
+use crate::mempool::{DisplayItems, OrangeClockConfig, PriceCurrency};
 use crate::util::LNBitsConnection;
 
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, NvsDefault};
@@ -12,6 +13,14 @@ const KEY_CURRENCY: &str = "currency";
 const KEY_DISPLAY_TYPE: &str = "display_type";
 const KEY_BOARD_TYPE: &str = "board_type";
 const KEY_ROTATION: &str = "rotation";
+
+// OrangeClock NVS keys (all ≤15 chars)
+const KEY_OC_ENABLED: &str = "oc_enabled";
+const KEY_OC_SSID: &str = "oc_ssid";
+const KEY_OC_PASS: &str = "oc_pass";
+const KEY_OC_MEMPOOL: &str = "oc_mempool";
+const KEY_OC_ITEMS: &str = "oc_items";
+const KEY_OC_CURRENCY: &str = "oc_currency";
 
 pub const DEFAULT_DISPLAY_TYPE: &str = "GxEPD2_150_BN";
 pub const DEFAULT_BOARD_TYPE: &str = "Generic";
@@ -129,5 +138,80 @@ impl Config {
             Some(s) => Ok(s.to_string()),
             None => Ok(DEFAULT_ROTATION.to_string()),
         }
+    }
+
+    // --- OrangeClock configuration ---
+
+    pub fn persist_orangeclock(
+        &mut self,
+        oc: &OrangeClockConfig,
+    ) -> Result<(), esp_idf_svc::sys::EspError> {
+        self.nvs
+            .set_str(KEY_OC_ENABLED, if oc.enabled { "1" } else { "0" })?;
+        self.nvs.set_str(KEY_OC_SSID, &oc.wifi_ssid)?;
+        self.nvs.set_str(KEY_OC_PASS, &oc.wifi_password)?;
+        self.nvs.set_str(KEY_OC_MEMPOOL, &oc.mempool_endpoint)?;
+        self.nvs
+            .set_str(KEY_OC_ITEMS, &oc.display_items.to_items_string())?;
+        self.nvs
+            .set_str(KEY_OC_CURRENCY, oc.price_currency.as_str())?;
+        log::debug!("persisted OrangeClock config (enabled={})", oc.enabled);
+        Ok(())
+    }
+
+    pub fn get_orangeclock(&self) -> Result<Option<OrangeClockConfig>, esp_idf_svc::sys::EspError> {
+        let mut buf = [0u8; 64];
+
+        let enabled = match self.nvs.get_str(KEY_OC_ENABLED, &mut buf)? {
+            Some(s) => s == "1",
+            None => return Ok(None),
+        };
+
+        if !enabled {
+            return Ok(None);
+        }
+
+        let mut buf_large = [0u8; 256];
+
+        let wifi_ssid = match self.nvs.get_str(KEY_OC_SSID, &mut buf_large)? {
+            Some(s) => s.to_string(),
+            None => return Ok(None),
+        };
+
+        let wifi_password = match self.nvs.get_str(KEY_OC_PASS, &mut buf_large)? {
+            Some(s) => s.to_string(),
+            None => String::new(),
+        };
+
+        let mempool_endpoint = match self.nvs.get_str(KEY_OC_MEMPOOL, &mut buf_large)? {
+            Some(s) if !s.is_empty() => s.to_string(),
+            _ => crate::mempool::DEFAULT_ENDPOINT.to_string(),
+        };
+
+        let display_items = match self.nvs.get_str(KEY_OC_ITEMS, &mut buf_large)? {
+            Some(s) => DisplayItems::from_items_string(s),
+            None => DisplayItems::default_items(),
+        };
+
+        let price_currency = match self.nvs.get_str(KEY_OC_CURRENCY, &mut buf)? {
+            Some(s) => PriceCurrency::from_str(s),
+            None => PriceCurrency::USD,
+        };
+
+        log::debug!(
+            "Loaded OrangeClock config: ssid={}, endpoint={}, currency={:?}",
+            wifi_ssid,
+            mempool_endpoint,
+            price_currency
+        );
+
+        Ok(Some(OrangeClockConfig {
+            enabled,
+            wifi_ssid,
+            wifi_password,
+            mempool_endpoint,
+            display_items,
+            price_currency,
+        }))
     }
 }
