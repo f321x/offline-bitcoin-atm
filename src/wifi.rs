@@ -1,3 +1,4 @@
+use esp_idf_hal::modem::Modem;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::http::server::{Configuration as HttpConfig, EspHttpServer};
@@ -5,13 +6,14 @@ use esp_idf_svc::http::Method;
 use esp_idf_svc::io::{EspIOError, Write};
 use esp_idf_svc::mdns::EspMdns;
 use esp_idf_svc::wifi::{
-    AccessPointConfiguration, AuthMethod, BlockingWifi, Configuration, EspWifi,
+    AccessPointConfiguration, AuthMethod, BlockingWifi, ClientConfiguration, Configuration, EspWifi,
 };
 
 use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::config::Config;
+use crate::mempool::{DisplayItems, OrangeClockConfig, PriceCurrency};
 use crate::util::LNBitsConnection;
 
 const AP_SSID: &str = "LightningATM";
@@ -121,12 +123,22 @@ pub fn start_config_portal(config: &mut Config) -> ! {
             config
                 .persist_rotation(&rotation)
                 .expect("Failed to save rotation");
-            log::info!("Configuration saved successfully. Restarting...");
+            log::info!("ATM configuration saved successfully.");
         }
         Err(e) => {
-            log::error!("Invalid device string: {}. Restarting to retry...", e);
+            log::error!("Invalid device string: {}.", e);
         }
     }
+
+    // Parse and save OrangeClock config (independent of LNBits config)
+    let oc_config = parse_orangeclock_config(&form_body);
+    config
+        .persist_orangeclock(&oc_config)
+        .expect("Failed to save OrangeClock config");
+    log::info!(
+        "OrangeClock config saved (enabled={}). Restarting...",
+        oc_config.enabled
+    );
 
     std::thread::sleep(Duration::from_secs(2));
     unsafe { esp_idf_svc::sys::esp_restart() };
@@ -152,4 +164,112 @@ fn parse_form_value(body: &str, key: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Check if a checkbox form field is present (checked)
+fn is_checkbox_checked(body: &str, key: &str) -> bool {
+    parse_form_value(body, key).is_some()
+}
+
+/// Parse OrangeClock configuration from form submission
+fn parse_orangeclock_config(body: &str) -> OrangeClockConfig {
+    let enabled = is_checkbox_checked(body, "oc_enabled");
+    let wifi_ssid = parse_form_value(body, "oc_ssid").unwrap_or_default();
+    let wifi_password = parse_form_value(body, "oc_pass").unwrap_or_default();
+    let mempool_endpoint = parse_form_value(body, "oc_mempool")
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| crate::mempool::DEFAULT_ENDPOINT.to_string());
+    let price_currency = parse_form_value(body, "oc_currency")
+        .map(|s| PriceCurrency::from_str(&s))
+        .unwrap_or(PriceCurrency::USD);
+
+    let display_items = DisplayItems {
+        block_height: is_checkbox_checked(body, "oc_item_height"),
+        price: is_checkbox_checked(body, "oc_item_price"),
+        moscow_time: is_checkbox_checked(body, "oc_item_moscow"),
+        fees: is_checkbox_checked(body, "oc_item_fees"),
+        halving_countdown: is_checkbox_checked(body, "oc_item_halving"),
+        difficulty_adjustment: is_checkbox_checked(body, "oc_item_diff"),
+        mempool_size: is_checkbox_checked(body, "oc_item_mempool"),
+    };
+
+    OrangeClockConfig {
+        enabled,
+        wifi_ssid,
+        wifi_password,
+        mempool_endpoint,
+        display_items,
+        price_currency,
+    }
+}
+
+// --- WiFi Station Mode (for OrangeClock) ---
+
+pub struct WifiStation {
+    wifi: BlockingWifi<EspWifi<'static>>,
+}
+
+impl WifiStation {
+    /// Create a new WiFi station from the modem peripheral.
+    pub fn new(
+        modem: Modem<'static>,
+        sysloop: EspSystemEventLoop,
+    ) -> Result<Self, esp_idf_svc::sys::EspError> {
+        let wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), None)?, sysloop)?;
+        Ok(Self { wifi })
+    }
+
+    /// Attempt to connect to a WiFi network. Returns true on success.
+    pub fn connect(&mut self, ssid: &str, password: &str) -> bool {
+        let auth = if password.is_empty() {
+            AuthMethod::None
+        } else {
+            AuthMethod::WPA2Personal
+        };
+
+        let client_config = ClientConfiguration {
+            ssid: ssid.try_into().unwrap_or_default(),
+            password: password.try_into().unwrap_or_default(),
+            auth_method: auth,
+            ..Default::default()
+        };
+
+        if let Err(e) = self
+            .wifi
+            .set_configuration(&Configuration::Client(client_config))
+        {
+            log::error!("OrangeClock WiFi: config error: {:?}", e);
+            return false;
+        }
+
+        if let Err(e) = self.wifi.start() {
+            log::error!("OrangeClock WiFi: start error: {:?}", e);
+            return false;
+        }
+
+        match self.wifi.connect() {
+            Ok(()) => {}
+            Err(e) => {
+                log::warn!("OrangeClock WiFi: connect error: {:?}", e);
+                return false;
+            }
+        }
+
+        match self.wifi.wait_netif_up() {
+            Ok(()) => {
+                let ip_info = self.wifi.wifi().sta_netif().get_ip_info().unwrap();
+                log::info!("OrangeClock WiFi: connected, IP: {}", ip_info.ip);
+                true
+            }
+            Err(e) => {
+                log::warn!("OrangeClock WiFi: netif up timeout: {:?}", e);
+                false
+            }
+        }
+    }
+
+    /// Check if WiFi is currently connected.
+    pub fn is_connected(&self) -> bool {
+        self.wifi.is_connected().unwrap_or(false)
+    }
 }
