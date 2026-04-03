@@ -3,4 +3,5 @@
 /.vscode
 /.idea
 .DS_Store
+.claude
 /telegram_notification_bot/atmbot_rust/target
