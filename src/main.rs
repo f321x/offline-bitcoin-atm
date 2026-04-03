@@ -1,0 +1,315 @@
+mod board;
+mod coins;
+mod config;
+mod display;
+mod lnurl;
+mod state;
+mod util;
+mod wifi;
+
+use epd_waveshare::epd1in54_v2::Epd1in54;
+use epd_waveshare::epd2in13_v2::Epd2in13;
+use epd_waveshare::epd2in7::Epd2in7;
+use epd_waveshare::epd2in7_v2::Epd2in7 as Epd2in7V2;
+use epd_waveshare::epd2in7b::Epd2in7b;
+use epd_waveshare::prelude::*;
+use esp_idf_hal::gpio::AnyIOPin;
+use esp_idf_hal::spi::config::MODE_0;
+use esp_idf_hal::{
+    delay::Delay,
+    gpio::{PinDriver, Pull},
+    peripherals::Peripherals,
+    spi::*,
+    units::FromValueType,
+};
+
+use std::thread;
+use std::time::{Duration, Instant};
+
+use crate::board::{BoardPins, BoardType};
+use crate::display::AtmDisplay;
+use crate::state::AppState;
+
+const IDLE_REFRESH_SECS: u64 = 43200; // 12 hours
+const COIN_TIMEOUT_SECS: u64 = 360; // 6 minutes
+const QR_DISPLAY_TIMEOUT_SECS: u64 = 600; // 10 minutes
+const CLEAN_PRESS_THRESHOLD: u32 = 3;
+const BOOT_BUTTON_GPIO: u8 = 0;
+const PRESS_WINDOW_SECS: u64 = 4;
+const PRESS_DEBOUNCE_MS: u64 = 500;
+const PRESS_POLL_MS: u64 = 50;
+
+fn format_amount(cents: u64, currency: &str) -> String {
+    format!("{:.2} {}", cents as f64 / 100.0, currency)
+}
+
+fn main() {
+    esp_idf_svc::sys::link_patches();
+    esp_idf_svc::log::EspLogger::initialize_default();
+    log::set_max_level(log::LevelFilter::Debug);
+
+    let mut config = config::Config::open().expect("failed to get non-volatile storage");
+
+    // Check if BOOT button (GPIO0) is held during startup — operator-only config portal trigger.
+    // GPIO0 is physically inside the enclosed case, not accessible to ATM users.
+    {
+        let boot_pin =
+            PinDriver::input(unsafe { AnyIOPin::steal(BOOT_BUTTON_GPIO) }, Pull::Up).unwrap();
+        thread::sleep(Duration::from_millis(100));
+        if boot_pin.is_low() {
+            thread::sleep(Duration::from_millis(500));
+            if boot_pin.is_low() {
+                log::info!("BOOT button held during startup — entering config portal");
+                wifi::start_config_portal(&mut config);
+            }
+        }
+        // boot_pin dropped here, releasing GPIO0 before Peripherals::take()
+    }
+
+    // Get LNBits connection details from NVS
+    let lnbits_connection = match config.get_lnbits_connection() {
+        Ok(Some(conn)) => conn,
+        Ok(None) => {
+            log::warn!("No LNBits configuration found. Starting config portal...");
+            wifi::start_config_portal(&mut config);
+        }
+        Err(e) => {
+            log::error!("Failed to read LNBits config: {:?}", e);
+            panic!("Config read error");
+        }
+    };
+
+    let mut peripherals = Peripherals::take().unwrap();
+
+    // Determine board type from config or default
+    let board_type_str = config
+        .get_board_type()
+        .unwrap_or_else(|_| config::DEFAULT_BOARD_TYPE.to_string());
+    let board_type = BoardType::from_str(&board_type_str);
+    log::info!("Selected Board: {:?}", board_type);
+
+    let pins =
+        BoardPins::new(board_type, &mut peripherals).expect("Failed to initialize board pins");
+
+    // --- GPIO Setup ---
+    let coin_pin = PinDriver::input(pins.coin, Pull::Up).unwrap();
+
+    let mut mosfet_pin = PinDriver::output(pins.mosfet).unwrap();
+    mosfet_pin.set_low().unwrap(); // Start enabled (LOW = Accept)
+
+    let button_pin = PinDriver::input(pins.button, Pull::Up).unwrap();
+
+    let mut button_led = PinDriver::output(pins.button_led).unwrap();
+    button_led.set_high().unwrap(); // LED ON
+
+    // --- Display Setup ---
+    // E-paper specific pins
+    let dc = PinDriver::output(pins.dc).unwrap();
+    let rst = PinDriver::output(pins.rst).unwrap();
+    let busy = PinDriver::input(pins.busy, Pull::Floating).unwrap();
+
+    let spi_config = SpiConfig::new()
+        .baudrate(4_u32.MHz().into())
+        .data_mode(MODE_0);
+
+    let mut spi = SpiDeviceDriver::new_single(
+        peripherals.spi2,
+        pins.sclk,
+        pins.mosi,
+        None::<AnyIOPin<'_>>,
+        Some(pins.cs),
+        &SpiDriverConfig::new(),
+        &spi_config,
+    )
+    .unwrap();
+
+    let mut delay = Delay::new_default();
+
+    let display_type = config
+        .get_display_type()
+        .unwrap_or_else(|_| config::DEFAULT_DISPLAY_TYPE.to_string());
+    let rotation_str = config
+        .get_rotation()
+        .unwrap_or_else(|_| config::DEFAULT_ROTATION.to_string());
+    let rotation = display::parse_rotation(&rotation_str);
+    log::info!(
+        "Selected Display: {}, Rotation: {}°",
+        display_type,
+        rotation_str
+    );
+
+    log::debug!("Initializing e-paper display...");
+    let mut display: Box<dyn AtmDisplay<SpiDeviceDriver<'static, SpiDriver>, Delay>> =
+        match display_type.as_str() {
+            "GxEPD2_270" => {
+                let epd = Epd2in7::new(&mut spi, busy, dc, rst, &mut delay, None).unwrap();
+                Box::new(display::Display2in7BwWrapper { epd, rotation })
+            }
+            "GxEPD2_270_V2" => {
+                let epd = Epd2in7V2::new(&mut spi, busy, dc, rst, &mut delay, None).unwrap();
+                Box::new(display::Display2in7V2Wrapper { epd, rotation })
+            }
+            "GxEPD2_270_3C" => {
+                let epd = Epd2in7b::new(&mut spi, busy, dc, rst, &mut delay, None).unwrap();
+                Box::new(display::Display2in7Wrapper { epd, rotation })
+            }
+            "GxEPD2_213_B74" => {
+                let epd = Epd2in13::new(&mut spi, busy, dc, rst, &mut delay, None).unwrap();
+                Box::new(display::Display2in13Wrapper { epd, rotation })
+            }
+            _ => {
+                // Default to 1.54
+                let epd = Epd1in54::new(&mut spi, busy, dc, rst, &mut delay, None).unwrap();
+                Box::new(display::Display1in54Wrapper { epd, rotation })
+            }
+        };
+    log::debug!("E-paper display initialized successfully");
+
+    log::debug!("Initializing coin detector...");
+    let mut coin_detector = coins::CoinDetector::new(coin_pin, mosfet_pin);
+    log::debug!("Coin detector initialized");
+    let mut app_state = AppState::Idle;
+
+    // Track accumulated amount
+    let mut current_amount_cents: u64 = 0;
+
+    loop {
+        match app_state {
+            AppState::Idle => {
+                log::info!("State: Idle");
+                button_led.set_high().unwrap();
+                if let Err(e) = display.home_screen(&mut spi, &mut delay) {
+                    log::error!("Display home_screen error: {}", e);
+                }
+
+                let idle_start = Instant::now();
+                loop {
+                    if idle_start.elapsed().as_secs() > IDLE_REFRESH_SECS {
+                        log::info!("12h idle refresh");
+                        let _ = display.clean(&mut spi, &mut delay);
+                        thread::sleep(Duration::from_secs(10));
+                        break; // Re-enter Idle which redraws home_screen
+                    }
+
+                    match coin_detector.wait_for_event(|| button_pin.is_low()) {
+                        coins::CoinInteraction::Button => {
+                            log::info!("Button pressed in Idle");
+                            // Count rapid presses: 3+ = clean screen
+                            let mut press_count = 1u32;
+                            let press_start = Instant::now();
+                            thread::sleep(Duration::from_millis(PRESS_DEBOUNCE_MS));
+                            while press_start.elapsed() < Duration::from_secs(PRESS_WINDOW_SECS) {
+                                if button_pin.is_low() {
+                                    press_count += 1;
+                                    thread::sleep(Duration::from_millis(PRESS_DEBOUNCE_MS));
+                                }
+                                thread::sleep(Duration::from_millis(PRESS_POLL_MS));
+                            }
+                            if press_count >= CLEAN_PRESS_THRESHOLD {
+                                log::info!("Screen clean triggered ({} presses)", press_count);
+                                button_led.set_low().unwrap();
+                                let _ = display.clean(&mut spi, &mut delay);
+                                thread::sleep(Duration::from_secs(30));
+                                let _ = display.home_screen(&mut spi, &mut delay);
+                            }
+                            break;
+                        }
+                        coins::CoinInteraction::Coin(val) => {
+                            current_amount_cents = val;
+                            app_state = AppState::CountingCoins(current_amount_cents);
+                            break;
+                        }
+                    }
+                }
+            }
+            AppState::CountingCoins(amount) => {
+                log::info!("State: CountingCoins - {}", amount);
+                button_led.set_low().unwrap();
+
+                if let Err(e) = display.show_inserted_amount(
+                    &mut spi,
+                    &mut delay,
+                    &format_amount(amount, &lnbits_connection.currency),
+                ) {
+                    log::error!("Display amount error: {}", e);
+                }
+
+                coin_detector.set_accepting(true);
+                button_led.set_high().unwrap(); // LED ON — ready for next coin
+
+                let mut last_coin_time = Instant::now();
+                loop {
+                    if last_coin_time.elapsed().as_secs() > COIN_TIMEOUT_SECS {
+                        log::info!("Coin timeout, auto-proceeding to withdrawal");
+                        app_state = AppState::WithdrawReady(current_amount_cents);
+                        break;
+                    }
+
+                    match coin_detector.wait_for_event(|| button_pin.is_low()) {
+                        coins::CoinInteraction::Button => {
+                            log::info!("Button pressed - Finishing deposit");
+                            app_state = AppState::WithdrawReady(current_amount_cents);
+                            break;
+                        }
+                        coins::CoinInteraction::Coin(val) => {
+                            current_amount_cents += val;
+                            last_coin_time = Instant::now();
+                            log::info!("Added {}, Total: {}", val, current_amount_cents);
+                            if let Err(e) = display.show_inserted_amount(
+                                &mut spi,
+                                &mut delay,
+                                &format_amount(current_amount_cents, &lnbits_connection.currency),
+                            ) {
+                                log::error!("Display amount error: {}", e);
+                            }
+                            button_led.set_high().unwrap(); // LED ON — ready for next coin
+                        }
+                    }
+                }
+            }
+            AppState::WithdrawReady(amount) => {
+                log::info!("State: WithdrawReady - {}", amount);
+                let lnurl_str = lnurl::make_lnurl(
+                    &lnbits_connection.base_url,
+                    &lnbits_connection.atm_secret,
+                    amount,
+                );
+
+                if let Err(e) = display.show_qr(&mut spi, &mut delay, &lnurl_str) {
+                    log::error!("Display QR error: {}", e);
+                }
+
+                let start_time = Instant::now();
+                let mut led_on = false;
+                loop {
+                    if button_pin.is_low() {
+                        log::info!("Button pressed - Resetting");
+                        current_amount_cents = 0;
+                        app_state = AppState::Idle;
+                        break;
+                    }
+
+                    let elapsed = start_time.elapsed();
+                    if elapsed.as_secs() > QR_DISPLAY_TIMEOUT_SECS {
+                        log::info!("QR display timeout (10 min)");
+                        current_amount_cents = 0;
+                        app_state = AppState::Idle;
+                        break;
+                    }
+
+                    let should_be_on = elapsed.as_millis() % 1000 < 500;
+                    if should_be_on != led_on {
+                        led_on = should_be_on;
+                        if led_on {
+                            button_led.set_high().unwrap();
+                        } else {
+                            button_led.set_low().unwrap();
+                        }
+                    }
+
+                    thread::sleep(Duration::from_millis(100));
+                }
+            }
+        }
+    }
+}
