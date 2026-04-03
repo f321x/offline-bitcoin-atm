@@ -1,0 +1,19 @@
+[build]
+target = "xtensa-esp32-espidf"
+
+[target.xtensa-esp32-espidf]
+linker = "ldproxy"
+# Erase NVS config partition on every flash to ensure clean state after firmware updates
+runner = "espflash flash --erase-parts nvs --monitor"
+rustflags = [ "--cfg",  "espidf_time64"]
+
+[unstable]
+build-std = ["std", "panic_abort"]
+
+[env]
+# CC = "xtensa-esp32-elf-gcc"
+CC_xtensa_esp32_espidf = "xtensa-esp32-elf-gcc"
+MCU="esp32"
+# Note: this variable is not used by the pio builder (`cargo build --features pio`)
+ESP_IDF_VERSION = "v5.5"
+

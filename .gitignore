@@ -1,0 +1,6 @@
+/target
+/.embuild
+/.vscode
+/.idea
+.DS_Store
+/telegram_notification_bot/atmbot_rust/target
