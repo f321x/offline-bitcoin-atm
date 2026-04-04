@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash Offline Bitcoin ATM</title>
+<style>
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 24px 16px;
+}
+
+.container {
+    width: 100%;
+    max-width: 440px;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.logo {
+    font-size: 48px;
+    line-height: 1;
+    margin-bottom: 12px;
+}
+
+.header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f7931a;
+    letter-spacing: 0.5px;
+}
+
+.header p {
+    font-size: 14px;
+    color: #888;
+    margin-top: 6px;
+}
+
+.card {
+    background: #16213e;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 28px 24px;
+}
+
+.steps {
+    list-style: none;
+    counter-reset: step;
+    margin-bottom: 24px;
+}
+
+.steps li {
+    counter-increment: step;
+    padding: 6px 0;
+    font-size: 14px;
+    color: #c0c0c0;
+    display: flex;
+    gap: 10px;
+}
+
+.steps li::before {
+    content: counter(step);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    background: #0f1a30;
+    border: 1px solid #2a2a4a;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+    color: #f7931a;
+}
+
+.flash-container {
+    text-align: center;
+}
+
+esp-web-install-button button {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    background: #f7931a;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: background 0.2s;
+}
+
+esp-web-install-button button:hover {
+    background: #e8850f;
+}
+
+esp-web-install-button button:active {
+    background: #d4790d;
+}
+
+esp-web-install-button button:focus-visible {
+    outline: 2px solid #f7931a;
+    outline-offset: 2px;
+}
+
+.unsupported {
+    display: block;
+    padding: 14px;
+    font-size: 14px;
+    color: #e07070;
+    background: #2a1a1a;
+    border: 1px solid #4a2a2a;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.hint {
+    font-size: 12px;
+    color: #666;
+    margin-top: 16px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.footer {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 12px;
+    color: #555;
+}
+
+.footer a {
+    color: #f7931a;
+    text-decoration: none;
+}
+
+.footer a:hover {
+    text-decoration: underline;
+}
+</style>
+<script
+    type="module"
+    src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"
+></script>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="logo">&#9889;</div>
+        <h1>Offline Bitcoin ATM</h1>
+        <p>Flash firmware directly from your browser</p>
+    </div>
+
+    <div class="card">
+        <ol class="steps">
+            <li>Connect your ESP32 to this computer via USB</li>
+            <li>Click the button below and select the serial port</li>
+            <li>Wait for the firmware to be flashed</li>
+        </ol>
+
+        <div class="flash-container">
+            <esp-web-install-button manifest="manifest.json">
+                <button slot="activate">Install Firmware</button>
+                <span slot="unsupported" class="unsupported">
+                    Your browser does not support Web Serial.<br>
+                    Please use Chrome or Edge on desktop.
+                </span>
+            </esp-web-install-button>
+        </div>
+
+        <p class="hint">
+            After flashing, the ATM starts a WiFi access point for configuration.
+            Connect to the <strong>LightningATM</strong> network and open
+            <strong>atm.local</strong> in your browser to set up your LNBits connection.
+        </p>
+    </div>
+
+    <p class="footer">
+        <a href="https://github.com/f321x/offline-bitcoin-atm">GitHub</a>
+        &mdash; see the README for full assembly and setup instructions
+    </p>
+</div>
+</body>
+</html>
