@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32
+          ldproxy: true
+
+      - name: Install python3-venv
+        run: sudo apt-get update && sudo apt-get install -y python3-venv
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: esp32-release
+          cache-directories: ~/.espressif
+
+      - name: Install espflash
+        run: cargo install espflash --locked
+
+      - name: Build release firmware
+        run: cargo build --release
+
+      - name: Prepare release artifacts
+        run: |
+          espflash save-image --chip esp32 --merge target/xtensa-esp32-espidf/release/offline-bitcoin-atm firmware-${{ github.ref_name }}.bin
+          cp target/xtensa-esp32-espidf/release/offline-bitcoin-atm firmware-${{ github.ref_name }}.elf
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Version ${{ github.ref_name }}"
+          body: |
+            ## Flashing Instructions
+
+            Install esptool if you don't have it:
+            ```bash
+            pip install esptool
+            ```
+
+            Flash the firmware (replace `/dev/ttyUSB0` with your serial port):
+            ```bash
+            esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 write_flash 0x0 firmware-${{ github.ref_name }}.bin
+            ```
+
+            After flashing, the ATM starts a WiFi access point for initial configuration.
+            See the [README](https://github.com/${{ github.repository }}/blob/master/README.md) for full setup instructions.
+          files: |
+            firmware-${{ github.ref_name }}.bin
+            firmware-${{ github.ref_name }}.elf
