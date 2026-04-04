@@ -15,6 +15,13 @@ Axel Hamburch for the very detailed guide in german language on assembly of the 
 @marcelhino for the OrangeClock project, whose code was used as reference for the "BlockClock" idle display mode.
 [OrangeClock repository](https://github.com/marcelhino/orangeclock)
 
+## Web Flasher
+
+Flash the firmware directly from your browser without installing any tools.
+Open the **[Web Flasher](https://f321x.github.io/offline-bitcoin-atm/)** in Chrome or Edge, connect your ESP32 via USB, and click "Install Firmware".
+
+After flashing, the ATM starts a WiFi access point (`LightningATM`) for configuration — see step 4 below.
+
 ## Used parts
 All the parts are available on eBay and Aliexpress
 

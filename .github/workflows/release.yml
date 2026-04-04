@@ -7,11 +7,16 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   release:
     name: Build & Release
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,13 +52,12 @@ jobs:
           body: |
             ## Flashing Instructions
 
-            Install esptool if you don't have it:
+            **Easiest:** Flash directly from your browser (Chrome/Edge) — no tools needed:
+            **https://${{ github.repository_owner }}.github.io/offline-bitcoin-atm/**
+
+            **Alternative:** Flash manually with esptool:
             ```bash
             pip install esptool
-            ```
-
-            Flash the firmware (replace `/dev/ttyUSB0` with your serial port):
-            ```bash
             esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 write_flash 0x0 firmware-${{ github.ref_name }}.bin
             ```
 
@@ -62,3 +66,30 @@ jobs:
           files: |
             firmware-${{ github.ref_name }}.bin
             firmware-${{ github.ref_name }}.elf
+
+      - name: Prepare Pages directory
+        run: |
+          mkdir _site
+          cp web-flasher/index.html _site/
+          cp firmware-${{ github.ref_name }}.bin _site/firmware.bin
+          cat > _site/manifest.json << EOF
+          {
+            "name": "Offline Bitcoin ATM",
+            "version": "${{ github.ref_name }}",
+            "builds": [
+              {
+                "chipFamily": "ESP32",
+                "parts": [
+                  { "path": "firmware.bin", "offset": 0 }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
