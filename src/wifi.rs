@@ -18,7 +18,7 @@ use crate::util::LNBitsConnection;
 
 const AP_SSID: &str = "LightningATM";
 
-const CONFIG_HTML: &str = include_str!("config_portal.html");
+const CONFIG_HTML: &str = include_str!("templates/config_portal.html");
 
 /// Start WiFi AP and serve a configuration portal.
 /// Blocks until the user submits config, then saves to NVS and restarts.
