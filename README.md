@@ -15,13 +15,6 @@ Axel Hamburch for the very detailed guide in german language on assembly of the 
 @marcelhino for the OrangeClock project, whose code was used as reference for the "BlockClock" idle display mode.
 [OrangeClock repository](https://github.com/marcelhino/orangeclock)
 
-## Web Flasher
-
-Flash the firmware directly from your browser without installing any tools.
-Open the **[Web Flasher](https://f321x.github.io/offline-bitcoin-atm/)** in Chrome or Edge, connect your ESP32 via USB, and click "Install Firmware".
-
-After flashing, the ATM starts a WiFi access point (`LightningATM`) for configuration — see step 4 below.
-
 ## Used parts
 All the parts are available on eBay and Aliexpress
 
@@ -99,38 +92,44 @@ Below are two possible wiring options. Depending on which ESP32 type and display
 
 ![Wiring - Circuit Diagram Waveshare ESP32](./assets/schematics/offlineATM-WaveshareESP32-xxxxxx.png)
 
-## 6. Setup software
 
-1. Install the Rust ESP32 toolchain (if you don't have `cargo` yet, install Rust via [rustup](https://rustup.rs/)):
-    ```bash
-    cargo install espup --locked
-    espup install
-    cat $HOME/export-esp.sh >> ~/.bashrc
-    source ~/.bashrc
-    cargo install espflash ldproxy
-    ```
+## 6. Flash the firmware onto the ESP32
 
-2. Clone this repository and build:
-    ```bash
-    git clone https://github.com/f321x/offline-bitcoin-atm.git
-    cd offline-bitcoin-atm
-    cargo build --release
-    ```
+#### Web flasher
+Flash the firmware directly from your browser without installing any tools.
+Open the **[Web Flasher](https://f321x.github.io/offline-bitcoin-atm/)** in Chrome or Edge, connect your ESP32 via USB, and click "Install Firmware".
 
-3. Create an [LNbits](https://lnbits.com/) wallet. Add the **FOSSA** extension and create a new ATM connection in the Extension by clicking on **NEW FOSSA**.
+#### Manual flashing
+Install the Rust ESP32 toolchain (if you don't have `cargo` yet, install Rust via [rustup](https://rustup.rs/)):
+
+```bash
+cargo install espup --locked
+espup install
+cat $HOME/export-esp.sh >> ~/.bashrc
+source ~/.bashrc
+cargo install espflash ldproxy
+```
+    
+Clone this repository and build:
+
+```bash
+git clone https://github.com/f321x/offline-bitcoin-atm.git
+cd offline-bitcoin-atm
+cargo build --release
+cargo run --release  # flashes to the connected esp32
+```
+
+## 7. Configuring the funding source
+
+1. Create an [LNbits](https://lnbits.com/) wallet. Add the **FOSSA** extension and create a new ATM connection in the Extension by clicking on **NEW FOSSA**.
 
     [![wallet_settings_02_thumb](./assets/wallet-config/wallet_settings_01_thumb.png)](./assets/wallet-config/wallet_settings_01.png)
 
-4. Copy the FOSSA connection string. The ATM stores configuration in flash memory - on first boot it will start a WiFi access point for configuration where you can enter the connection string. Connect to the `LightningATM` WiFi network and open [http://atm.local](http://atm.local) in your browser.
+2. Copy the FOSSA connection string. The ATM stores configuration in flash memory - on first boot it will start a WiFi access point for configuration where you can enter the connection string. Connect to the `LightningATM` WiFi network and open [http://atm.local](http://atm.local) in your browser.
 
     > **Tip:** To reconfigure the ATM later, hold the **BOOT button** (GPIO0) on the ESP32 during power-on. The device will re-enter the WiFi configuration portal. The BOOT button is located on the ESP32 board inside the enclosure and is not accessible to end users.
 
     [![wallet_settings_02_thumb](./assets/wallet-config/wallet_settings_02_thumb.png)](./assets/wallet-config/wallet_settings_02.png)
-
-5. Flash the software on the esp32. You may have to disconnect the ESP32 from the step up converter before connecting it to the computer to prevent faults, or power it up with the power supply and use an usb isolator.
-    ```bash
-    cargo run --release  # flashes and opens serial monitor
-    ```
 
 If you need help ask me on Nostr @npub1z9n5ktfjrlpyywds9t7ljekr9cm9jjnzs27h702te5fy8p2c4dgs5zvycf
 
