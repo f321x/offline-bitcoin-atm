@@ -93,11 +93,11 @@ Below are two possible wiring options. Depending on which ESP32 type and display
 
 1. Standard ESP32 with separate display / driver board
 
-![Wiring - Circuit Diagram Normal ESP32](./assets/offlineATM-xxxxxx.png)
+![Wiring - Circuit Diagram Normal ESP32](./assets/schematics/offlineATM-xxxxxx.png)
 
 2. Waveshare ESP32 with integrated driver board and separate display
 
-![Wiring - Circuit Diagram Waveshare ESP32](./assets/offlineATM-WaveshareESP32-xxxxxx.png)
+![Wiring - Circuit Diagram Waveshare ESP32](./assets/schematics/offlineATM-WaveshareESP32-xxxxxx.png)
 
 ## 6. Setup software
 
@@ -117,15 +117,15 @@ Below are two possible wiring options. Depending on which ESP32 type and display
     cargo build --release
     ```
 
-3. Create an [LNbits](https://lnbits.com/) wallet. Add the LNURLDevice extension and create a new LNURLDevice instance with ATM.
+3. Create an [LNbits](https://lnbits.com/) wallet. Add the **FOSSA** extension and create a new ATM connection in the Extension by clicking on **NEW FOSSA**.
 
-    [![wallet_settings_02_thumb](./assets/wallet_settings_01_thumb.png)](./assets/wallet_settings_01.png)
+    [![wallet_settings_02_thumb](./assets/wallet-config/wallet_settings_01_thumb.png)](./assets/wallet-config/wallet_settings_01.png)
 
-4. Copy the LNURLDevice Settings String. The ATM stores configuration in flash memory (NVS) - on first boot it will start a WiFi access point for configuration where you can enter the connection string. Connect to the `LightningATM` WiFi network and open [http://atm.local](http://atm.local) in your browser.
+4. Copy the FOSSA connection string. The ATM stores configuration in flash memory - on first boot it will start a WiFi access point for configuration where you can enter the connection string. Connect to the `LightningATM` WiFi network and open [http://atm.local](http://atm.local) in your browser.
 
     > **Tip:** To reconfigure the ATM later, hold the **BOOT button** (GPIO0) on the ESP32 during power-on. The device will re-enter the WiFi configuration portal. The BOOT button is located on the ESP32 board inside the enclosure and is not accessible to end users.
 
-    [![wallet_settings_02_thumb](./assets/wallet_settings_02_thumb.png)](./assets/wallet_settings_02.png)
+    [![wallet_settings_02_thumb](./assets/wallet-config/wallet_settings_02_thumb.png)](./assets/wallet-config/wallet_settings_02.png)
 
 5. Flash the software on the esp32. You may have to disconnect the ESP32 from the step up converter before connecting it to the computer to prevent faults, or power it up with the power supply and use an usb isolator.
     ```bash
@@ -144,8 +144,8 @@ Standard ESP32
 ![PXL_20231126_162906807 MP_1](https://github.com/f321x/offline-LightningATM-esp32/assets/51097237/7e394774-f341-4b1c-ae73-4806f6f42ce5)
 
 Waveshare ESP32
-![Construction - Waveshare ESP32](./assets/WaveshareESP32_construction_005.jpg)
-![Construction - Waveshare ESP32](./assets/WaveshareESP32_construction_001.jpg)
-![Construction - Waveshare ESP32](./assets/WaveshareESP32_construction_002.jpg)
-![Construction - Waveshare ESP32](./assets/WaveshareESP32_construction_003.jpg)
-![Construction - Waveshare ESP32](./assets/WaveshareESP32_construction_004.jpg)
+![Construction - Waveshare ESP32](./assets/photos/WaveshareESP32_construction_005.jpg)
+![Construction - Waveshare ESP32](./assets/photos/WaveshareESP32_construction_001.jpg)
+![Construction - Waveshare ESP32](./assets/photos/WaveshareESP32_construction_002.jpg)
+![Construction - Waveshare ESP32](./assets/photos/WaveshareESP32_construction_003.jpg)
+![Construction - Waveshare ESP32](./assets/photos/WaveshareESP32_construction_004.jpg)
